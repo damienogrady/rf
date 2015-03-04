@@ -1,0 +1,6 @@
+data<-read.table("descriptions",header = F,sep = '|')
+names(data)<-c('Non_GDE','Description')
+library(foreign)
+grass<-read.dbf('NessVegClass.dbf')
+out<-merge(grass,data,all.x=T)
+write.dbf(out,file ='NessVegClass.dbf')
