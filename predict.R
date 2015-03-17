@@ -13,36 +13,37 @@ library(foreign)
 #
 # "bandnames" must simply be the character list of band names corresponding to
 # the predictors, IN THE ORDER THEY APPEAR IN THE GEOTIFF FILE.  These names
-# must be same as those used to create the rando forest object (obviously).
+# must be same as those used to create the random forest object (obviously).
 #
 # Needless to say, "rf" is the random forst object previously created.
 # The function should create a single band GeoTIFF file with the same name as
 # "imagefile", but prefixed by "p_".
 #
 # Damien - 27 August 2014
+# 18 March 2015 - changed to work on batches of 100000 cells at a time so tgat
+# memory can manage it.
 #
 ################################################################################
 
 rfPredict <- function(rf, imagefile, bandnames, imageout=paste0("p_",imagefile)) {
   o <- raster(imagefile,band=1) #Import the first raster band as prototype
   nbands <- length(bandnames)
-  
-  # Now put all data into a data frame
-  data_all<-data.frame(values(raster(imagefile,band=1)))
-  
-  for(i in 2:nbands){
-    data_all<-cbind(data_all,values(raster(imagefile,band=i))) # 
-  }
-  bandnames->names(data_all)
-  
-  # Now get rid of any rows that have a null value in any of the columns
-#   for(i in 1:nbands){
-#     data_all<-data_all[!is.na(data_all[,i]),]
-#   }
-      
-  p<-predict(rf,newdata=data_all)  # Now classify the whole
+  out<-matrix()
+  s<-stack(imagefile)
+  names(s)<-bandnames
 
-  values(o)<-as.numeric(p)
-  writeRaster(o,imageout,'GTiff')
-  return(p)
+  batches<-ceiling(ncell(s)/100000)
+  
+  ptm <- proc.time()
+  for (i in 1:batches) {
+    ulimit <- i * 100000
+    llimit <- (ulimit - 100000) + 1
+    ulimit <- ifelse(ulimit > ncell(s), ncell(s), ulimit)
+    out[llimit:ulimit]<-predict(rf,newdata=s[llimit:ulimit])
+  }
+  print(proc.time() - ptm)
+
+  values(o)<-out
+  writeRaster(o,imageout,'GTiff',datatype='INT1U')
+  return(1)
 }
